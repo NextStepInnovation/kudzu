@@ -4,8 +4,12 @@ defmodule Nmap.MixProject do
   def project do
     [
       app: :nmap,
-      version: "0.0.1",
-      elixir: "~> 1.9",
+      version: "0.1.0",
+      build_path: "../../_build",
+      config_path: "../../config/config.exs",
+      deps_path: "../../deps",
+      lockfile: "../../mix.lock",
+      elixir: "~> 1.10.1",
       start_permanent: Mix.env() == :prod,
       deps: deps()
     ]
@@ -22,7 +26,8 @@ defmodule Nmap.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:gen_stage, "~> 0.14"},
+      {:utils, in_umbrella: true},
+      {:shell, in_umbrella: true},
       {:sweet_xml, "~> 0.6.6"},
       # {:sweet_xml, git: "https://github.com/kbrw/sweet_xml.git"},
       # {:dep_from_hexpm, "~> 0.3.0"},

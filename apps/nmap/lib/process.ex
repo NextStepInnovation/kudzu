@@ -1,5 +1,5 @@
 defmodule Nmap.Process do
-  use GenServer, restart: :temporary
+  use GenServer, restart: :temporary, shutdown: 600
 
   require Logger
 
@@ -7,16 +7,21 @@ defmodule Nmap.Process do
     GenServer.start_link(__MODULE__, args)
   end
 
-  def nmap_exec_path do
-    System.find_executable("nmap")
-  end
-
-  # def child_spec(args) do
-  #   %{id: Nmap.Process, start: {Nmap.Process, :start_link, [args]}}
-  # end
-
   def status(process) do
     GenServer.call(process, :status)
+  end
+
+  def output_binary(output) when is_list(output) do
+    output
+    |> Enum.reverse
+    |> Enum.join("\n")
+  end
+  def output(process) when is_pid(process) do
+    GenServer.call(process, :output_binary)
+  end
+
+  def halt(process) do
+    GenServer.stop(process, :shutdown)
   end
 
   @impl true
@@ -33,13 +38,17 @@ defmodule Nmap.Process do
      {:continue, :start_nmap}}
   end
 
+  def prepare_args(args) do
+    with {:ok, arglist} <- args |> Args.from_list do
+      {:ok, arglist ++ [{:oX, "-"}, {:stats_every, "2s"}]}
+    end
+  end
+
   @impl true
   def handle_continue(:start_nmap, state=%{args: args}) do
-    args = args ++ [{:oX, "-"}, {:stats_every, "2s"}]
-    with {:ok, arglist} <- args |> Nmap.Args.from_list do
-      IO.inspect([nmap_exec_path() | arglist])
+    with {:ok, arglist} <- prepare_args(args) do
       port = Port.open(
-        {:spawn_executable, nmap_exec_path()},
+        {:spawn_executable, Nmap.exec_path},
         [:binary, :exit_status, args: arglist]
       )
       port_info = Port.info(port)
@@ -57,8 +66,7 @@ defmodule Nmap.Process do
   def handle_info({_port, {:exit_status, 0}}, %{output: output} = state) do
     Logger.info("nmap exited successfully...")
     case output
-    |> Enum.reverse
-    |> Enum.join("\n")
+    |> output_binary
     |> Nmap.XmlParser.parse_nmap_binary do
       {:ok, nmap} ->
         Logger.info("  ... successful parse of nmap XML")
@@ -86,14 +94,17 @@ defmodule Nmap.Process do
   end
 
   @impl true
-  def handle_call(
-    :status, _from, %{output: output, success: success,
-                      failure: failure} = state) do
+  def handle_call(:output_binary, _from, %{output: output} = state) do
+    {:reply, output_binary(output), state}
+  end
+
+  @impl true
+  def handle_call(:status, _from, %{output: output, success: success,
+                                    failure: failure} = state) do
     case {success, failure} do
       {nil, nil} ->
-        outstr = output |> Enum.reverse |> Enum.join("\n")
-
-        status = outstr
+        status = output
+        |> output_binary
         |> Nmap.XmlParser.parse_progress
         |> List.last
 
@@ -109,9 +120,10 @@ defmodule Nmap.Process do
 
   @impl true
   def terminate(_reason, %{finished: finished, port_info: port_info}) do
+    Logger.info("Nmap terminated...")
     if not finished do
       {:ok, pid} = port_info[:os_pid] |> Utils.maybe_integer(0)
-      Logger.warn("Found running PID #{pid}. Killing...")
+      Logger.info("Found running PID #{pid}. Killing...")
       if pid > 0 do
         case System.cmd("kill", ["-9", Integer.to_string(pid)]) do
           {success, 0} ->
