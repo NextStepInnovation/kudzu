@@ -18,6 +18,8 @@ defmodule Kudzu.MixProject do
   defp deps do
     [
       {:gen_stage, "~> 0.14"},
+      {:csv, "~> 2.3"},
+      {:poison, "~> 3.1"},
       {:timex, "~> 3.5"},
     ]
   end
