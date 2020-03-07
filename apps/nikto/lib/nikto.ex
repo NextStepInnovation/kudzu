@@ -1,8 +1,12 @@
 defmodule Nikto do
   @moduledoc """
-  Documentation for `Nikto`.
+  Wrapper for the nikto web application brute forcing command
   """
 
+  @doc """
+  
+  """
+  
   @doc """
   Hello world.
 
