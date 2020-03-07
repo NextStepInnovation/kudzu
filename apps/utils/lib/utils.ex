@@ -7,7 +7,9 @@ defmodule Utils do
     end
   end
   @spec maybe_string(any) :: {:ok, binary} | {:error, any}
+  def maybe_string(v) when is_atom(v), do: {:ok, Atom.to_string(v)}
   def maybe_string(v) when is_binary(v), do: {:ok, v}
+  def maybe_string(v) when is_float(v), do: {:ok, Float.to_string(v)}
   def maybe_string(v) when is_integer(v), do: {:ok, Integer.to_string(v)}
   def maybe_string(v) when is_list(v) do
     try do

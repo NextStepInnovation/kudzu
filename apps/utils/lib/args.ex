@@ -37,9 +37,17 @@ defmodule Args do
     {name, Integer.to_string(integer)}
     |> prepare_arg(opts)
   end
-  def prepare_arg({name, value}, _opts) when is_binary(name) and is_binary(value) do
-    {:ok, ["#{name}","#{value}"]}
+  def prepare_arg({name, value}, _opts) do
+    with {:ok, name} <- Utils.maybe_string(name),
+         {:ok, value} <- Utils.maybe_string(value) do
+      {:ok, [name, value]}
+    else
+      error -> {:error, {:not_string_like, error}}
+    end
   end
+  # def prepare_arg({name, value}, _opts) when is_binary(name) and is_binary(value) do
+  #   {:ok, ["#{name}","#{value}"]}
+  # end
   def prepare_arg(string, _opts) when is_binary(string), do: {:ok, [string]}
   def prepare_arg(bad, _opts), do: {:error, {:cannot_parse_arg, bad}}
 
