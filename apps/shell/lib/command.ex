@@ -2,6 +2,17 @@ defmodule Shell.Command do
 
   @doc """
 
+  Prepare the Shell.Command state map prior to running the Port.
+  E.g. might be used to set up a temporary output file to be parsed
+  after the command has completed.
+
+  By default, returns state as is.
+
+  """
+  @callback command_init(map) :: map
+
+  @doc """
+
   Given a List of arguments, convert to a list of command-line
   arguments as strings, suitable for the `Port.open` command.
 
@@ -9,7 +20,7 @@ defmodule Shell.Command do
   directly.
 
   """
-  @callback prepare_args(list) :: list
+  @callback command_args(list) :: list
 
   @doc """
 
@@ -45,7 +56,7 @@ defmodule Shell.Command do
 
   @callback exec_path() :: {:ok, binary} | :error
 
-  @optional_callbacks prepare_args: 1,
+  @optional_callbacks command_args: 1,
                       handle_exit: 2,
                       handle_status: 1,
                       exec_path: 0
@@ -122,20 +133,30 @@ defmodule Shell.Command do
       end
 
       # ------------------------------------------------------------
-      # prepare_args callback
+      # command_init callback
       #
       # ------------------------------------------------------------
-      @spec prepare_args(map) :: {:ok, list} | {:error, term}
-      def prepare_args(%{args: args}), do: args |> Args.from_list
+      @spec command_init(map) :: {:ok, map} | {:error, term}
+      def command_init(state), do: {:ok, state}
 
-      defoverridable prepare_args: 1
+      defoverridable command_init: 1
+
+      # ------------------------------------------------------------
+      # command_args callback
+      #
+      # ------------------------------------------------------------
+      @spec command_args(map) :: {:ok, list} | {:error, term}
+      def command_args(%{args: args}), do: args |> Args.from_list
+
+      defoverridable command_args: 1
 
       @impl true
-      def handle_continue(:start_shell, state=%{args: args,
-                                                options: options,
-                                                times: times,
-                                                exec_path: exec_path}) do
-        with {:ok, arglist} <- prepare_args(state) do
+      def handle_continue(:start_shell, %{args: args,
+                                          options: options,
+                                          times: times,
+                                          exec_path: exec_path} = state) do
+        with {:ok, state} <- command_init(state),
+             {:ok, arglist} <- command_args(state) do
           port = Port.open(
             {:spawn_executable, exec_path}, options ++ [args: arglist]
           )

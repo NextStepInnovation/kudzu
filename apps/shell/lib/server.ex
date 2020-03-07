@@ -21,6 +21,10 @@ defmodule Shell.Server do
     GenServer.call(__MODULE__, :status)
   end
 
+  def list() do
+    GenServer.call(__MODULE__, :list)
+  end
+
   def start(module, name, args) do
     GenServer.cast(__MODULE__, {:start, module, name, args}) 
   end
@@ -59,6 +63,11 @@ defmodule Shell.Server do
     |> Enum.map(fn({_, pid}) -> Shell.Command.halt(pid) end)
     
     {:reply, {:ok, finished}, state}
+  end
+
+  @impl true
+  def handle_call(:list, _from, {processes, _} = state) do
+    {:reply, {:ok, processes |> Map.keys}, state}
   end
 
   @impl true
