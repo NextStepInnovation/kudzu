@@ -2,10 +2,11 @@ defmodule Fping.Command do
   use Shell.Command, command: "fping"
 
   def parse_ips(output) do
-    ips = output
-    |> output_binary
-    |> String.split("\n")
-    |> Enum.flat_map(&IP.parse_ips/1)
+    ips =
+      output
+      |> output_binary
+      |> String.split("\n")
+      |> Enum.flat_map(&IP.parse_ips/1)
 
     {:ok, ips}
   end
@@ -22,7 +23,7 @@ defmodule Fping.Command do
   @impl true
   def handle_exit(status, %{output: output}) when status in 0..2 do
     case output
-    |> parse_ips do
+         |> parse_ips do
       {:error, reason} -> {:failure, {:bad_output, reason}}
       {:ok, ips} -> {:success, ips}
     end

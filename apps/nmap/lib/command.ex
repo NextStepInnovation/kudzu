@@ -4,8 +4,8 @@ defmodule Nmap.Command do
 
   @impl true
   def command_init(state) do
-    with {:ok, norm_path} <- Tempfile.file(".txt"),
-         {:ok, xml_path} <- Tempfile.file(".xml") do
+    with {:ok, norm_path} <- Tempfile.file(suffix: ".txt"),
+         {:ok, xml_path} <- Tempfile.file(suffix: ".xml") do
       {:ok,
        state
        |> Map.put(:nmap, %{xml_path: xml_path, norm_path: norm_path})}

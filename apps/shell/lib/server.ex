@@ -17,8 +17,37 @@ defmodule Shell.Server do
   def status(name) do
     GenServer.call(__MODULE__, {:status, name})
   end
+
   def status() do
     GenServer.call(__MODULE__, :status)
+  end
+
+  def outcome(name, sleep \\ 1000) do
+    case Shell.Server.status(name) do
+      {:running, _} ->
+        :timer.sleep(sleep)
+        outcome(name, sleep)
+
+      status ->
+        status
+    end
+  end
+
+  def outcomes(names, sleep \\ 1000) do
+    statuses =
+      names
+      |> Enum.map(&Shell.Server.status/1)
+
+    has_running = 
+      statuses
+      |> Enum.any?(fn {state, _} -> state == :running end)
+
+    if has_running do
+      :timer.sleep(sleep)
+      outcomes(names, sleep)
+    else
+      statuses
+    end
   end
 
   def list() do
@@ -26,7 +55,7 @@ defmodule Shell.Server do
   end
 
   def start(module, name, args) do
-    GenServer.cast(__MODULE__, {:start, module, name, args}) 
+    GenServer.cast(__MODULE__, {:start, module, name, args})
   end
 
   def halt(name) do
@@ -50,24 +79,23 @@ defmodule Shell.Server do
 
   @impl true
   def handle_call(:flush, _from, {processes, _} = state) do
-    finished = processes
-    |> Enum.filter(
-      fn({_, pid}) ->
+    finished =
+      processes
+      |> Enum.filter(fn {_, pid} ->
         case Shell.Command.status(pid) do
           {:success, _} -> true
           {:failure, _} -> true
           _ -> false
         end
-      end
-    )
-    |> Enum.map(fn({_, pid}) -> Shell.Command.halt(pid) end)
-    
+      end)
+      |> Enum.map(fn {_, pid} -> Shell.Command.halt(pid) end)
+
     {:reply, {:ok, finished}, state}
   end
 
   @impl true
   def handle_call(:list, _from, {processes, _} = state) do
-    {:reply, {:ok, processes |> Map.keys}, state}
+    {:reply, {:ok, processes |> Map.keys()}, state}
   end
 
   @impl true
@@ -85,41 +113,50 @@ defmodule Shell.Server do
 
   @impl true
   def handle_call(:status, _from, {processes, _} = state) do
-    status = processes
-    |> Enum.map(
-      fn({name, pid}) ->
+    status =
+      processes
+      |> Enum.map(fn {name, pid} ->
         case Shell.Command.status(pid) do
-          {:running, nil} -> {name, "Starting..."}
-          {:running, %{task: task, percent: percent,
-                        remaining: remaining}} ->
-              {name, "#{task}: #{remaining}s (#{percent}%)"}
-          {:success, _} -> {name, "Done."}
-          {:failure, _} -> {name, "FAILED."}
+          {:running, nil} ->
+            {name, "Starting..."}
+
+          {:running, %{task: task, percent: percent, remaining: remaining}} ->
+            {name, "#{task}: #{remaining}s (#{percent}%)"}
+
+          {:success, _} ->
+            {name, "Done."}
+
+          {:failure, _} ->
+            {name, "FAILED."}
         end
-      end
-    )
-    |> Enum.into(%{})
+      end)
+      |> Enum.into(%{})
+
     {:reply, status, state}
   end
 
   @impl true
   def handle_call({:halt, name}, _from, {processes, _} = state) do
     pid = Map.get(processes, name)
+
     case Shell.Command.halt(pid) do
       :ok -> {:reply, :ok, state}
       error -> {:reply, error, state}
     end
   end
-  
+
   @impl true
   def handle_cast({:start, module, name, args}, {processes, monitors}) do
     if Map.has_key?(processes, name) do
       {:noreply, {processes, monitors}}
     else
       # IO.inspect(args)
-      {:ok, pid} = DynamicSupervisor.start_child(
-        Shell.CommandSupervisor, {module, args}
-      )
+      {:ok, pid} =
+        DynamicSupervisor.start_child(
+          Shell.CommandSupervisor,
+          {module, args}
+        )
+
       ref = Process.monitor(pid)
       monitors = Map.put(monitors, ref, name)
       processes = Map.put(processes, name, pid)
@@ -129,10 +166,11 @@ defmodule Shell.Server do
 
   @impl true
   def handle_info(
-    {:DOWN, ref, :process, _pid, _reason}, {processes, monitors}
-  ) do
+        {:DOWN, ref, :process, _pid, _reason},
+        {processes, monitors}
+      ) do
     {name, monitors} = Map.pop(monitors, ref)
-    Logger.info("Process down: #{name}")
+    # Logger.info("Process down: #{name}")
 
     {_pid, processes} = Map.pop(processes, name)
     # if Process.alive?(pid) do
@@ -140,13 +178,12 @@ defmodule Shell.Server do
     #     {:running, _} -> GenServer.stop(pid)
     #     _ -> 1
     #   end
-    
+
     {:noreply, {processes, monitors}}
-  end  
+  end
 
   @impl true
   def handle_info(_msg, state) do
     {:noreply, state}
   end
-
 end

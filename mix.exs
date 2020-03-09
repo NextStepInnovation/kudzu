@@ -21,6 +21,12 @@ defmodule Kudzu.MixProject do
       {:csv, "~> 2.3"},
       {:poison, "~> 3.1"},
       {:timex, "~> 3.5"},
+      {
+        :briefly,
+        git: "https://github.com/CargoSense/briefly",
+        ref: "2526e9674a4e6996137e066a1295ea60962712b8"
+        # "~> 0.4" https://github.com/CargoSense/briefly/issues/17
+      },
     ]
   end
 end

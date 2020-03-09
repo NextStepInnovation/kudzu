@@ -3,7 +3,7 @@ defmodule Nikto.Command do
 
   @impl true
   def command_init(state) do
-    with {:ok, csv_path} <- Tempfile.file(".csv") do
+    with {:ok, csv_path} <- Tempfile.file(suffix: ".csv") do
       {:ok, state |> Map.put(:nikto, %{csv_path: csv_path})}
     end
   end
