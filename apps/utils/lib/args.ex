@@ -1,5 +1,31 @@
 defmodule Args do
-  def atom_to_name(atom) do
+  require Logger
+  
+  @moduledoc """
+  Utilties for handling command-line arguments
+  """
+
+  @doc """
+  Convert an atom to a command-line option
+
+  Atoms of length 1 to 2 are converted to short options (i.e. with one
+  dash), and atoms of length three or more are converted to long
+  options (i.e. with two dashes).
+
+  ## Parameters
+
+  - atom: Atom to be converted to an option
+
+  ## Examples
+
+  iex> Args.atom_to_option(:a)
+  "-a"
+
+  iex> Args.atom_to_option(:abc)
+  "--abc"
+  
+  """
+  def atom_to_option(atom) do
     name = atom
     |> Atom.to_string
     |> String.replace("_", "-")
@@ -9,12 +35,55 @@ defmodule Args do
       "-#{name}"
     end
   end
+
+  @doc """
   
+  Convert individual command-line argument tuples to binary
+  representation suitable for passing to the Port.open function.
+
+  ## Examples
+
+      iex> Args.prepare_arg(:a, [])
+      {:ok, ["-a"]}
+
+      iex> Args.prepare_arg({:a, 5}, [])
+      {:ok, ["-a", "5"]}
+
+      iex> Args.prepare_arg({:a, {5, 2, "a"}}, [])
+      {:ok, ["-a", "5,2,a"]}
+
+      iex> Args.prepare_arg({:a, [5, 2, "a"]}, [])
+      {:ok, ["-a", "5,2,a"]}
+
+      iex> Args.prepare_arg({:a, [5, 2, "a"]}, [sep: ":"])
+      {:ok, ["-a", "5:2:a"]}
+
+      iex> Args.prepare_arg({:a, []}, [])
+      {:error, {:empty_list_arg, "-a"}}
+
+      iex> Args.prepare_arg({:a, {}}, [])
+      {:error, {:empty_list_arg, "-a"}}
+
+      iex> Args.prepare_arg({:a, [{}]}, [])
+      {:error, {:bad_list, "-a", [{}], [bad_type: {}]}}
+
+      iex> Args.prepare_arg({"-a", "5"}, [])
+      {:ok, ["-a", "5"]}
+
+      iex> Args.prepare_arg("abc", [])
+      {:ok, ["abc"]}
+
+      iex> Args.prepare_arg({:a}, [])
+      {:error, {:cannot_parse_arg, {:a}}}
+
+      iex> Args.prepare_arg({"a"}, [])
+      {:error, {:cannot_parse_arg, {"a"}}}
+  """
   def prepare_arg(atom, _opts) when is_atom(atom) do
-    {:ok, ["#{atom_to_name(atom)}"]}
+    {:ok, ["#{atom_to_option(atom)}"]}
   end
   def prepare_arg({atom, value}, opts) when is_atom(atom) do
-    {"#{atom_to_name(atom)}", value}
+    {"#{atom_to_option(atom)}", value}
     |> prepare_arg(opts)
   end
   def prepare_arg({name, tuple}, opts) when is_tuple(tuple) do
@@ -33,10 +102,10 @@ defmodule Args do
       end
     end
   end
-  def prepare_arg({name, integer}, opts) when is_integer(integer) do
-    {name, Integer.to_string(integer)}
-    |> prepare_arg(opts)
-  end
+  # def prepare_arg({name, integer}, opts) when is_integer(integer) do
+  #   {name, Integer.to_string(integer)}
+  #   |> prepare_arg(opts)
+  # end
   def prepare_arg({name, value}, _opts) do
     with {:ok, name} <- Utils.maybe_string(name),
          {:ok, value} <- Utils.maybe_string(value) do
@@ -51,6 +120,20 @@ defmodule Args do
   def prepare_arg(string, _opts) when is_binary(string), do: {:ok, [string]}
   def prepare_arg(bad, _opts), do: {:error, {:cannot_parse_arg, bad}}
 
+  @doc """
+  
+  Convert individual command-line argument tuples to binary
+  representation suitable for passing to the Port.open function.
+
+  ## Examples
+
+      iex> Args.from_list([{:a, 5}, {:bcd, 3}, "d"], [])  
+      {:ok, ["-a", "5", "--bcd", "3", "d"]}
+
+      iex> Args.from_list([{:d}], [])
+      {:error, {:bad_args, [error: {:cannot_parse_arg, {:d}}]}}
+
+  """
   def from_list(list, opts\\[]) when is_list(list) do
     args = list
     |> Enum.map(&prepare_arg(&1, opts))
@@ -58,7 +141,6 @@ defmodule Args do
 
     error = Map.get(args, :error, [])
     if error |> Enum.count > 0 do
-      IO.inspect(error)
       {:error, {:bad_args, error}}
     else
       {:ok,
