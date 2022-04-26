@@ -8,9 +8,9 @@ defmodule Nmap.XmlParser do
   @doc """
 
   Parse an nmap XML output file
-  
+
   """
-  @spec parse_nmap_path(binary) :: map
+  @spec parse_nmap_path(binary) :: {:ok, map} | {:error, term}
   def parse_nmap_path(path) when is_binary(path) do
     Logger.info "Parsing nmap XML path #{path}"
     with {:ok, doc} <- File.read(path),
@@ -19,6 +19,13 @@ defmodule Nmap.XmlParser do
     end
   end
 
+  @spec parse_nmap_binary(binary) ::
+          {:error,
+           {:fatal_xml, any}
+           | {:nmap_xml_parsing,
+              %{:__exception__ => true, :__struct__ => atom, optional(atom) => any}}
+           | {:xml_parsing, %{:__exception__ => true, :__struct__ => atom, optional(atom) => any}}}
+          | {:ok, map}
   def parse_nmap_binary(doc) when is_binary(doc) do
     Logger.info "Parsing nmap XML data #{String.length(doc)}"
     with {:ok, doc_elem} <- parse_xml(doc),
@@ -27,6 +34,7 @@ defmodule Nmap.XmlParser do
     end
   end
 
+  @spec parse_progress(binary) :: list
   def parse_progress(doc) when is_binary(doc) do
     doc
     |> String.split("\n")
@@ -47,6 +55,14 @@ defmodule Nmap.XmlParser do
     |> Enum.filter(fn(v) -> v end)
   end
 
+  @spec parse_xml(binary) ::
+          {:error,
+           {:fatal_xml, any}
+           | {:xml_parsing,
+              %{:__exception__ => true,
+                :__struct__ => atom, optional(atom) => any}}}
+          | {:ok,
+             {:xmlElement, any, any, any, any, any, any, any, any, any, any, any}}
   def parse_xml(doc) when is_binary(doc) do
     try do
       parsed = parse(doc, quiet: true)
@@ -58,6 +74,11 @@ defmodule Nmap.XmlParser do
     end
   end
 
+  @spec parse_nmap_elem(any) ::
+          {:error,
+           {:nmap_xml_parsing,
+            %{:__exception__ => true, :__struct__ => atom, optional(atom) => any}}}
+          | {:ok, map}
   def parse_nmap_elem(doc_elem) do
     try do
       {:ok, parse_nmap_elem!(doc_elem)}
@@ -66,6 +87,14 @@ defmodule Nmap.XmlParser do
     end
   end
 
+  @spec maybe_epoch(
+          nil
+          | binary
+          | maybe_improper_list(
+              binary | maybe_improper_list(any, binary | []) | char,
+              binary | []
+            )
+        ) :: nil | binary | DateTime.t()
   def maybe_epoch(nil), do: nil
   def maybe_epoch(ts) when is_list(ts) do
     ts |> List.to_string |> maybe_epoch
@@ -81,16 +110,18 @@ defmodule Nmap.XmlParser do
     end
   end
 
+  @spec maybe_atom(nil | binary | charlist) :: atom
   def maybe_atom(nil), do: nil
   def maybe_atom(w) when is_list(w), do: List.to_atom(w)
   def maybe_atom(w) when is_binary(w), do: String.to_atom(w)
 
+  @spec transform_nmap(map) :: map
   def transform_nmap(nmap) do
     if Map.has_key?(nmap, :hosts) do
       hosts = nmap.hosts
       |> Enum.map(fn(h) -> %{h.addresses.ipv4.addr => h} end)
       |> merge_maps
-      
+
       nmap
       |> Map.put(:hosts, hosts)
     else
@@ -98,8 +129,9 @@ defmodule Nmap.XmlParser do
     end
   end
 
+  @spec parse_nmap_elem!(any) :: map
   def parse_nmap_elem!(doc_elem) do
-    doc_elem 
+    doc_elem
     |> xpath(
       # ~x"//nmaprun"
       ~x"//nmaprun",
@@ -117,7 +149,7 @@ defmodule Nmap.XmlParser do
         numservices: ~x"./@numservices"io,
         services: ~x"./@services"s,
       ],
-    
+
       verbose: [
         ~x"./verbose"o,
         level: ~x"./@level"io,
@@ -176,11 +208,13 @@ defmodule Nmap.XmlParser do
     |> transform_nmap
   end
 
+  @spec filter_nil(any) :: list
   def filter_nil(children) do
     children
     |> Enum.filter(fn(v) -> not is_nil(v) end)
   end
 
+  @spec merge_maps(any) :: map
   def merge_maps(children_with_nil) do
     # If all children are Maps, then merge children into single map,
     # else leave as list
@@ -199,7 +233,7 @@ defmodule Nmap.XmlParser do
     scripts = node.scripts
     |> Enum.map(fn(s) -> %{s.id => s} end)
     |> merge_maps
-    
+
     node
     |> Map.put(:scripts, scripts)
   end
@@ -212,7 +246,7 @@ defmodule Nmap.XmlParser do
     addresses = host.addresses
     |> Enum.map(fn(a) -> %{String.to_atom(a.addrtype) => a} end)
     |> merge_maps
-    
+
     host
     |> transform_scripts
     |> Map.put(:ports, ports)
@@ -221,7 +255,7 @@ defmodule Nmap.XmlParser do
 
   '''
   <!ELEMENT host	( status, address , (address | hostnames |
-                          smurf | ports | os | distance | uptime | 
+                          smurf | ports | os | distance | uptime |
                           tcpsequence | ipidsequence | tcptssequence |
                           hostscript | trace)*, times? ) >
   <!ATTLIST host
@@ -230,7 +264,7 @@ defmodule Nmap.XmlParser do
 			comment		CDATA		#IMPLIED
 
   '''
-  
+
   def parse_hosts(nmaprun_elem) do
     nmaprun_elem
     |> xpath(
@@ -326,7 +360,7 @@ defmodule Nmap.XmlParser do
           fingerprint: ~x"./@fingerprint"s,
         ],
       ],
-    
+
       status: [
         ~x"./status"o,
         state: ~x"./@state" |> transform_by(&maybe_atom/1),
@@ -347,12 +381,12 @@ defmodule Nmap.XmlParser do
                           [{:xmlAttribute, :key, _, _, _,
                            _, _, _, key, _}], children, _, _, _}) do
     %{
-      List.to_string(key) => 
+      List.to_string(key) =>
       children
       |> Enum.map(&parse_script_node/1)
       |> merge_maps
     }
-    
+
   end
 
   def parse_script_node({:xmlElement, :elem, _atom, _l, _ns, _locs, _int,
@@ -366,7 +400,7 @@ defmodule Nmap.XmlParser do
     %{List.to_string(key) => elem |> xpath(~x"./text()"s)}
   end
 
-  def parse_script_node({:xmlElement, :script, _atom, _l, _ns, _locs, _int, 
+  def parse_script_node({:xmlElement, :script, _atom, _l, _ns, _locs, _int,
                           _attr, children, _l2, _path, _atom2}) do
     children
     |> Enum.map(&parse_script_node/1)

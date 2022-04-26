@@ -9,7 +9,7 @@ defmodule Shell.Command do
   By default, returns state as is.
 
   """
-  @callback command_init(map) :: map
+  @callback command_init(map) :: {:ok, map} | {:error, term}
 
   @doc """
 
@@ -20,7 +20,7 @@ defmodule Shell.Command do
   directly.
 
   """
-  @callback command_args(list) :: list
+  @callback command_args(map) :: {:ok, list} | {:error, term}
 
   @doc """
 
@@ -43,7 +43,7 @@ defmodule Shell.Command do
 
   - `{:running, term}` where term is something that indicates the
     current status of the running process (default: stdout + stderr)
-  
+
   - `{:success, term}` where term is the thing associated with a
     successful run of this Shell.Command
 
@@ -60,21 +60,31 @@ defmodule Shell.Command do
                       handle_exit: 2,
                       handle_status: 1,
                       exec_path: 0
-      
+
+  @spec __using__(keyword) ::
+          {:__block__, [],
+           [
+             {:@, [...], [...]}
+             | {:def, [...], [...]}
+             | {:defoverridable, [...], [...]}
+             | {:require, [...], [...]}
+             | {:use, [...], [...]},
+             ...
+           ]}
   defmacro __using__(opts) do
     command = Keyword.get(opts, :command, "")
-    
+
     port_options = Keyword.get(
       opts, :port_options, [:binary, :exit_status, :stderr_to_stdout]
     )
-    
+
     quote do
       use GenServer, restart: :temporary
       @behaviour Shell.Command
 
       @command unquote(command)
       @port_options unquote(port_options)
-      
+
       require Logger
 
       def start_link(args) do
@@ -161,7 +171,7 @@ defmodule Shell.Command do
             {:spawn_executable, exec_path}, options ++ [args: arglist]
           )
           port_info = Port.info(port)
-          
+
           state = state
           |> Map.put(:port, port)
           |> Map.put(:port_info, port_info)
@@ -185,7 +195,7 @@ defmodule Shell.Command do
         end
       end
       defoverridable handle_exit: 2
-      
+
       @impl true
       def handle_info({_port, {:exit_status, status}}, %{times: times} = state) do
         Logger.info("#{state[:exec_path]} exited with status #{status}...")
@@ -198,7 +208,7 @@ defmodule Shell.Command do
                     |> Map.put(:failure, failure)
                 end
         {:noreply,
-         state   
+         state
          |> Map.put(:finished, true)
          |> Map.put(:times, times |> Map.merge(%{finished: Timex.now()}))
         }

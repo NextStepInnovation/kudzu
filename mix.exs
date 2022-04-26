@@ -10,6 +10,13 @@ defmodule Kudzu.MixProject do
     ]
   end
 
+  def application do
+    [
+      extra_applications: [:logger, :csv, :timex],
+    ]
+  end
+
+
   # Dependencies listed here are available only for this
   # project and cannot be accessed from applications inside
   # the apps folder.
@@ -17,9 +24,9 @@ defmodule Kudzu.MixProject do
   # Run "mix help deps" for examples and options.
   defp deps do
     [
-      {:gen_stage, "~> 0.14"},
+      {:gen_stage, "~> 1.1.2"},
       {:csv, "~> 2.3"},
-      {:poison, "~> 3.1"},
+      {:poison, "~> 5.0"},
       {:timex, "~> 3.5"},
       {
         :briefly,
@@ -29,4 +36,5 @@ defmodule Kudzu.MixProject do
       },
     ]
   end
+
 end

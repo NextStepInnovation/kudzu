@@ -1,26 +1,21 @@
-defmodule Nmap.Process do
-  use GenServer, restart: :temporary, shutdown: 600
+defmodule Impacket.Process do
+  use GenServer, restart: :temporary #, shutdown: 600
 
   require Logger
 
-  @spec start_link(any) :: :ignore | {:error, any} | {:ok, pid}
   def start_link(args) do
     GenServer.start_link(__MODULE__, args)
   end
 
-  @spec status(atom | pid | {atom, any} | {:via, atom, any}) :: any
   def status(process) do
     GenServer.call(process, :status)
   end
 
-  @spec output_binary(maybe_improper_list) :: binary
   def output_binary(output) when is_list(output) do
     output
     |> Enum.reverse
     |> Enum.join("\n")
   end
-
-  @spec output(pid) :: any
   def output(process) when is_pid(process) do
     GenServer.call(process, :output_binary)
   end
@@ -40,7 +35,7 @@ defmodule Nmap.Process do
         success: nil,
         failure: nil,
      },
-     {:continue, :start_nmap}}
+     {:continue, :start_impacket}}
   end
 
   def prepare_args(args) do
@@ -50,10 +45,10 @@ defmodule Nmap.Process do
   end
 
   @impl true
-  def handle_continue(:start_nmap, state=%{args: args}) do
+  def handle_continue(:start_impacket, state=%{args: args}) do
     with {:ok, arglist} <- prepare_args(args) do
       port = Port.open(
-        {:spawn_executable, Nmap.exec_path},
+        {:spawn_executable, Impacket.exec_path},
         [:binary, :exit_status, args: arglist]
       )
       port_info = Port.info(port)
@@ -69,16 +64,16 @@ defmodule Nmap.Process do
 
   @impl true
   def handle_info({_port, {:exit_status, 0}}, %{output: output} = state) do
-    Logger.info("nmap exited successfully...")
+    Logger.info("impacket exited successfully...")
     case output
     |> output_binary
-    |> Nmap.XmlParser.parse_nmap_binary do
-      {:ok, nmap} ->
-        Logger.info("  ... successful parse of nmap XML")
+    |> Impacket.XmlParser.parse_impacket_binary do
+      {:ok, impacket} ->
+        Logger.info("  ... successful parse of impacket XML")
         {
           :noreply,
           state
-          |> Map.put(:success, nmap)
+          |> Map.put(:success, impacket)
           |> Map.put(:finished, true)
         }
       {:error, reason} ->
@@ -110,13 +105,13 @@ defmodule Nmap.Process do
       {nil, nil} ->
         status = output
         |> output_binary
-        |> Nmap.XmlParser.parse_progress
+        |> Impacket.XmlParser.parse_progress
         |> List.last
 
         {:reply, {:running, status}, state}
 
-      {nmap, nil} ->
-        {:reply, {:success, nmap}, state}
+      {impacket, nil} ->
+        {:reply, {:success, impacket}, state}
 
       {nil, error} ->
         {:reply, {:failure, error}, state}
@@ -125,7 +120,7 @@ defmodule Nmap.Process do
 
   @impl true
   def terminate(_reason, %{finished: finished, port_info: port_info}) do
-    Logger.info("Nmap terminated...")
+    Logger.info("Impacket terminated...")
     if not finished do
       {:ok, pid} = port_info[:os_pid] |> Utils.maybe_integer(0)
       Logger.info("Found running PID #{pid}. Killing...")

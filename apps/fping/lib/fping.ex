@@ -7,6 +7,10 @@ defmodule Fping do
 
   require Logger
 
+  def exec_path do
+    Application.fetch_env!(:fping, :exec_path)
+  end
+
   @spec scan_subnet(binary) :: {:ok, {{:fping, term}, list}} | {:error, term}
   def scan_subnet(subnet) when is_binary(subnet) do
     args = [:aq, :g, subnet]

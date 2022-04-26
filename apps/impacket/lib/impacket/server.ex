@@ -1,4 +1,4 @@
-defmodule Nmap.Server do
+defmodule Impacket.Server do
   use GenServer
 
   require Logger
@@ -57,14 +57,14 @@ defmodule Nmap.Server do
     finished = processes
     |> Enum.filter(
       fn({_, pid}) ->
-        case Nmap.Process.status(pid) do
+        case Impacket.Process.status(pid) do
           {:success, _} -> true
           {:failure, _} -> true
           _ -> false
         end
       end
     )
-    |> Enum.map(fn({_, pid}) -> Nmap.Process.halt(pid) end)
+    |> Enum.map(fn({_, pid}) -> Impacket.Process.halt(pid) end)
 
     {:reply, {:ok, finished}, state}
   end
@@ -79,7 +79,7 @@ defmodule Nmap.Server do
   def handle_call({:status, name}, _from, {processes, _} = state) do
     # IO.inspect(processes)
     case Map.fetch(processes, name) do
-      {:ok, pid} -> {:reply, Nmap.Process.status(pid), state}
+      {:ok, pid} -> {:reply, Impacket.Process.status(pid), state}
       _ -> {:reply, :error, state}
     end
   end
@@ -89,7 +89,7 @@ defmodule Nmap.Server do
     status = processes
     |> Enum.map(
       fn({name, pid}) ->
-        case Nmap.Process.status(pid) do
+        case Impacket.Process.status(pid) do
           {:running, nil} -> {name, "Starting..."}
           {:running, %{task: task, percent: percent,
                         remaining: remaining}} ->
@@ -106,7 +106,7 @@ defmodule Nmap.Server do
   @impl true
   def handle_call({:halt, name}, _from, {processes, _} = state) do
     pid = Map.get(processes, name)
-    case Nmap.Process.halt(pid) do
+    case Impacket.Process.halt(pid) do
       :ok -> {:reply, :ok, state}
       error -> {:reply, error, state}
     end
@@ -119,7 +119,7 @@ defmodule Nmap.Server do
     else
       # IO.inspect(args)
       {:ok, pid} = DynamicSupervisor.start_child(
-        Nmap.ProcessSupervisor, {Nmap.Process, args}
+        Impacket.ProcessSupervisor, {Impacket.Process, args}
       )
       ref = Process.monitor(pid)
       monitors = Map.put(monitors, ref, name)
@@ -137,7 +137,7 @@ defmodule Nmap.Server do
 
     {_pid, processes} = Map.pop(processes, name)
     # if Process.alive?(pid) do
-    #   case Nmap.Process.status(pid) do
+    #   case Impacket.Process.status(pid) do
     #     {:running, _} -> GenServer.stop(pid)
     #     _ -> 1
     #   end

@@ -24,7 +24,7 @@ defmodule Fping.Command do
   def handle_exit(status, %{output: output}) when status in 0..2 do
     case output
          |> parse_ips do
-      {:error, reason} -> {:failure, {:bad_output, reason}}
+      # {:error, reason} -> {:failure, {:bad_output, reason}}
       {:ok, ips} -> {:success, ips}
     end
   end

@@ -22,7 +22,7 @@ defmodule Nmap do
 
     case Shell.Server.start(Nmap.Command, key, args) do
       :ok -> {:ok, {key, args}}
-      error -> {:error, error}
+      # error -> {:error, error}
     end
   end
 
@@ -37,15 +37,18 @@ defmodule Nmap do
     end
   end
 
-  @spec scan_ips(list) :: {:ok, list} | {:error, term}
+  @spec scan_ips(maybe_improper_list) :: list
   def scan_ips(ips) when is_list(ips) do
     ips
     |> Enum.map(&scan_ip/1)
+  end
+  def scan_ips(_bad) do
+    {:error, :not_a_list}
   end
 
   @spec scan_ips!(list) :: list
   def scan_ips!(ips) when is_list(ips) do
     ips
-    |> Enum.map(&scan_ip/1)
+    |> Enum.map(&scan_ip!/1)
   end
 end
