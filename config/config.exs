@@ -29,7 +29,7 @@ config :dirb,
 config :nikto,
   exec_path: "/usr/bin/nikto"
 
-config :wmiexec,
-  exec_path: "/usr/bin/impacket-wmiexec"
+# config :wmiexec,
+#   exec_path: "/usr/bin/impacket-wmiexec"
 
 import_config "#{Mix.env()}.exs"
